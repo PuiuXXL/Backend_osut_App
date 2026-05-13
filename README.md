@@ -1,98 +1,305 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# OSUT Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend NestJS pentru aplicatia organizatiei studentesti OSUT Cluj.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Stack
 
-## Description
+- NestJS
+- Prisma ORM
+- PostgreSQL
+- Docker
+- Better Auth
+- Swagger/OpenAPI
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Model de date curent
 
-## Project setup
+Schema Prisma defineste in acest moment:
 
-```bash
-$ npm install
+- `User` cu rol global de sistem prin `systemRole`: `USER` sau `ADMIN`
+- `User.profileRole` pentru rolul principal vizibil in profil
+- `Department` pentru departamentele organizatiei
+- `Membership` pentru legatura dintre user si departament, cu rol pe departament
+- `Announcement` pentru anunturi globale sau pe departament
+- `Account`, `Session` si `Verification` pentru Better Auth
+
+Rolurile pe departament sunt:
+
+- `INACTIVE_VOLUNTEER`
+- `VOLUNTEER`
+- `MEMBER`
+- `ACTIVE_MEMBER`
+- `CO_COORDINATOR`
+- `COORDINATOR`
+
+Rolurile principale din profil sunt:
+
+- `INACTIVE_VOLUNTEER`
+- `VOLUNTEER`
+- `MEMBER`
+- `ACTIVE_MEMBER`
+
+`ADMIN` este rol global pe `User`, separat de rolurile operationale pe departament.
+
+Pentru autentificare:
+
+- `displayName` este numele principal al utilizatorului
+- credentialele email/parola sunt stocate in `Account.password`
+- login-ul social Google foloseste legarea automata a conturilor pe acelasi email
+
+## Reguli de autorizare modelate in schema
+
+- Un user poate avea roluri diferite in departamente diferite prin `Membership`.
+- Un anunt poate fi global sau legat de un departament:
+  - `departmentId = null`: anunt global
+  - `departmentId != null`: anunt de departament
+- Conform modelului curent, anunturile de departament vor putea fi publicate de `CO_COORDINATOR`, `COORDINATOR` sau `ADMIN`.
+- Anunturile globale vor putea fi publicate doar de `ADMIN`.
+
+## Configurare mediu
+
+Aplicatia foloseste variabilele de mediu din `.env`.
+
+Exemplu:
+
+```env
+DATABASE_URL="postgresql://osut_user:osut_password@localhost:5433/osut_db?schema=public"
+BETTER_AUTH_SECRET="replace-with-a-long-random-secret"
+BETTER_AUTH_URL="http://localhost:3000"
+FRONTEND_URL="http://localhost:5173"
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
 ```
 
-## Compile and run the project
+### Ce reprezinta fiecare variabila
+
+- `DATABASE_URL`
+  - conexiunea PostgreSQL folosita de Prisma si Better Auth
+  - pentru proiectul tau local poate ramane exact cum este acum, daca folosesti containerul Docker din proiect
+
+- `BETTER_AUTH_SECRET`
+  - cheia secreta folosita de Better Auth pentru semnare, criptare si cookie-uri
+  - trebuie sa fie lunga si random; nu folosi textul placeholder din exemplu
+  - o poti genera cu:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+openssl rand -base64 32
 ```
 
-## Run tests
+- `BETTER_AUTH_URL`
+  - URL-ul backend-ului unde ruleaza Better Auth
+  - local, daca backend-ul Nest ruleaza pe portul 3000, valoarea corecta este:
+
+```env
+BETTER_AUTH_URL="http://localhost:3000"
+```
+
+- `FRONTEND_URL`
+  - URL-ul frontend-ului care are voie sa apeleze backend-ul si flow-urile de auth
+  - daca frontend-ul tau ruleaza pe Vite local, de obicei este:
+
+```env
+FRONTEND_URL="http://localhost:5173"
+```
+
+- `GOOGLE_CLIENT_ID`
+  - acesta este OAuth Client ID din Google Cloud Console
+  - se obtine dintr-un credential OAuth 2.0 de tip Web application
+
+- `GOOGLE_CLIENT_SECRET`
+  - acesta este OAuth Client Secret din acelasi credential Google OAuth
+  - nu trebuie comis niciodata in git
+
+### De unde iei valorile
+
+#### 1. `BETTER_AUTH_SECRET`
+
+Il generezi local, nu il iei de pe un site:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+openssl rand -base64 32
 ```
 
-## Deployment
+Copiaza rezultatul in `.env`, de exemplu:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+```env
+BETTER_AUTH_SECRET="pune-aici-secretul-generat"
+```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+#### 2. `BETTER_AUTH_URL`
+
+Este adresa backend-ului tau.
+
+- local: `http://localhost:3000`
+- pe server: domeniul real al backend-ului, de exemplu `https://api.osut.ro`
+
+#### 3. `FRONTEND_URL`
+
+Este adresa frontend-ului care consuma backend-ul.
+
+- local cu Vite: `http://localhost:5173`
+- local cu alt port: inlocuiesti cu portul real
+- productie: domeniul real al frontend-ului
+
+#### 4. `GOOGLE_CLIENT_ID` si `GOOGLE_CLIENT_SECRET`
+
+Le iei din Google Cloud Console:
+
+1. Intra pe `https://console.cloud.google.com/`
+2. Creeaza sau selecteaza un proiect
+3. Mergi la `APIs & Services`
+4. Configureaza `OAuth consent screen`
+5. Creeaza un `OAuth Client ID` de tip `Web application`
+6. Din acel credential copiezi:
+   - `Client ID` -> il pui in `GOOGLE_CLIENT_ID`
+   - `Client Secret` -> il pui in `GOOGLE_CLIENT_SECRET`
+7. La `Authorized redirect URIs` adauga URI-ul de redirect valid pentru backend-ul tau
+
+Pentru implementarea curenta din acest proiect, redirect-ul important local este:
+
+```text
+http://localhost:3000/api/auth/callback/google
+```
+
+Daca vei avea productie, va trebui sa adaugi si varianta de productie, de exemplu:
+
+```text
+https://api.exemplu.ro/api/auth/callback/google
+```
+
+### Ce trebuie sa schimbi acum in `.env`
+
+Dintre valorile din screenshot:
+
+- `DATABASE_URL`
+  - o poti lasa asa daca folosesti baza de date locala din Docker
+- `BETTER_AUTH_URL`
+  - o poti lasa asa daca backend-ul porneste pe `localhost:3000`
+- `FRONTEND_URL`
+  - o poti lasa asa doar daca frontend-ul ruleaza pe `localhost:5173`
+- `BETTER_AUTH_SECRET`
+  - trebuie schimbat obligatoriu
+- `GOOGLE_CLIENT_ID`
+  - trebuie schimbat daca vrei login cu Google functional
+- `GOOGLE_CLIENT_SECRET`
+  - trebuie schimbat daca vrei login cu Google functional
+
+Exemplu minim corect pentru local:
+
+```env
+DATABASE_URL="postgresql://osut_user:osut_password@localhost:5433/osut_db?schema=public"
+BETTER_AUTH_SECRET="secret-generat-cu-openssl"
+BETTER_AUTH_URL="http://localhost:3000"
+FRONTEND_URL="http://localhost:5173"
+GOOGLE_CLIENT_ID="Client-ID-din-Google"
+GOOGLE_CLIENT_SECRET="Client-Secret-din-Google"
+```
+
+## Pornire baza de date
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm install
+docker compose up -d
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Migrari Prisma
 
-## Resources
+```bash
+npx prisma migrate dev
+npx prisma generate
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+## Pornire aplicatie
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+npm run start:dev
+```
 
-## Support
+## Documentatie API
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Swagger este disponibil la:
 
-## Stay in touch
+```text
+http://localhost:3000/api/docs
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Endpointuri auth
 
-## License
+- `POST /auth/register` pentru creare cont cu email, `displayName` si parola
+- `POST /auth/login` pentru autentificare cu email si parola
+- `POST /auth/logout` pentru inchiderea sesiunii curente
+- `GET /auth/session` pentru sesiunea curenta
+- `GET /auth/google` pentru pornirea login-ului Google
+  - optional: `?redirectTo=http://localhost:5173/dashboard`
+  - frontend-ul poate decide pagina finala de aterizare dupa login
+- `GET /api/auth/token` pentru obtinerea JWT-ului emis de Better Auth
+- `GET /api/auth/jwks` pentru verificarea semnaturii JWT
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Endpointuri users
+
+- `GET /users/me/profile` pentru profilul userului autentificat
+- `GET /users/:id/profile` pentru profilul unui user dupa ID
+
+Profilul returneaza:
+
+- `displayName`
+- `firstName`
+- `lastName`
+- `email`
+- `role`
+- `coordinatorTeams`
+- `coordinatorTeamsDisplay`
+
+Regula pentru coordonare:
+
+- daca userul nu este `CO_COORDINATOR` sau `COORDINATOR` in niciun departament, `coordinatorTeamsDisplay` va fi `-`
+
+## Endpointuri announcements
+
+- `POST /announcements`
+  - creeaza un anunt nou cu `title`, `description`, `imageUrl`, `departmentId`
+  - daca `departmentId` lipseste, anuntul este general
+  - daca `departmentId` exista, anuntul este pe departament
+- `GET /announcements/general`
+  - returneaza anunturile generale in format minimal
+- `GET /announcements/departments/:departmentId`
+  - returneaza anunturile unui departament in format minimal
+- `GET /announcements/:id`
+  - returneaza varianta extinsa a unui anunt
+- `PATCH /announcements/:id`
+  - permite editarea unui anunt doar de catre autorul lui
+
+Formatul minimal de listare include:
+
+- `id`
+- `title`
+- `imageUrl`
+- `createdAt`
+
+Formatul extins include:
+
+- `id`
+- `title`
+- `description`
+- `imageUrl`
+- `author`
+- `department`
+- `createdAt`
+- `updatedAt`
+
+Reguli de creare:
+
+- anunt general: doar `ADMIN`
+- anunt pe departament: `ADMIN`, `CO_COORDINATOR` sau `COORDINATOR` pentru acel departament
+
+## Teste si verificare
+
+```bash
+npm run build
+npm run test -- --runInBand
+```
+
+## Observatii
+
+- Schema bazei de date este definita in `prisma/schema.prisma`.
+- Migrarile Prisma trebuie comise in repository.
+- Dupa orice schimbare importanta in schema sau setup, actualizeaza acest README.
