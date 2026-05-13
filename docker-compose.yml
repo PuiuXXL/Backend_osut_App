@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: osut_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: osut_user
+      POSTGRES_PASSWORD: osut_password
+      POSTGRES_DB: osut_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - osut_pgdata:/var/lib/postgresql/data
+
+volumes:
+  osut_pgdata:
